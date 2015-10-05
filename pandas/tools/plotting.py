@@ -17,6 +17,7 @@ from pandas.core.common import AbstractMethodError
 from pandas.core.generic import _shared_docs, _shared_doc_kwargs
 from pandas.core.index import Index, MultiIndex
 from pandas.core.series import Series, remove_na
+from pandas.core.algorithms import value_counts
 from pandas.tseries.index import DatetimeIndex
 from pandas.tseries.period import PeriodIndex, Period
 import pandas.tseries.frequencies as frequencies
@@ -2773,7 +2774,8 @@ def scatter_plot(data, x, y, by=None, ax=None, figsize=None, grid=False,
 
 def hist_frame(data, column=None, by=None, grid=True, xlabelsize=None,
                xrot=None, ylabelsize=None, yrot=None, ax=None, sharex=False,
-               sharey=False, figsize=None, layout=None, bins=10, **kwds):
+               sharey=False, figsize=None, layout=None, bins=10,
+               numeric_only=False, **kwds):
     """
     Draw histogram of the DataFrame's series using matplotlib / pylab.
 
@@ -2823,7 +2825,10 @@ def hist_frame(data, column=None, by=None, grid=True, xlabelsize=None,
         if not isinstance(column, (list, np.ndarray, Index)):
             column = [column]
         data = data[column]
-    data = data._get_numeric_data()
+
+    if numeric_only:
+        data = data._get_numeric_data()
+
     naxes = len(data.columns)
 
     fig, axes = _subplots(naxes=naxes, ax=ax, squeeze=False,
@@ -2833,7 +2838,14 @@ def hist_frame(data, column=None, by=None, grid=True, xlabelsize=None,
 
     for i, col in enumerate(com._try_sort(data.columns)):
         ax = _axes[i]
-        ax.hist(data[col].dropna().values, bins=bins, **kwds)
+        if data[col].dtype == object:
+            _h = data[col].apply(value_counts).sum()
+            _hist, _bins = np.array(_h), np.array(_h.index)
+            ax.bar(np.arange(len(_hist), dtype=float), _hist)
+            ax.set_xticks(np.arange(len(_hist)) + .4)
+            ax.set_xticklabels(_bins)
+        else:
+            ax.hist(data[col].dropna().values, bins=bins, **kwds)
         ax.set_title(col)
         ax.grid(grid)
 
